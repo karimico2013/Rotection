@@ -8,7 +8,7 @@ interface DiscordRedirectProps {
 
 export function DiscordRedirect({ action, onBack }: DiscordRedirectProps) {
   const handleDiscordClick = () => {
-    window.open('https://discord.com', '_blank');
+    window.open('https://discord.gg/WsmkkZcDVv', '_blank');
   };
 
   return (
