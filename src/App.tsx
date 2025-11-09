@@ -29,6 +29,24 @@ const verifiedGames = [
     description: 'Room infinity, now going up! Regretevator is a roulette style elevator puzzle game where you can hang out, look for secrets, and have fun. ',
     category: 'Party & Casual'
   },
+   {
+    id: '2',
+    name: 'Regretevator [ ELEVATOR SIMULATOR ]',
+    developer: 'The Axolotl Sun',
+    thumbnail: 'https://tr.rbxcdn.com/180DAY-518f33de5515b3f895688a98dc26e337/768/432/Image/Webp/noFilter',
+    safetyScore: 90,
+    ageRating: '9+',
+    ratings: {
+      honesty: 4.6,
+      safety: 4.4,
+      fairness: 4.3,
+      ageAppropriate: 4.7
+    },
+    totalRatings: 'Staff',
+    verified: true,
+    description: 'Room infinity, now going up! Regretevator is a roulette style elevator puzzle game where you can hang out, look for secrets, and have fun. ',
+    category: 'Party & Casual'
+  },
 
 ];
 
