@@ -42,7 +42,7 @@ const verifiedGames = [
       fairness: 4.3,
       ageAppropriate: 4.7
     },
-    totalRatings: 'Staff',
+    totalRatings: 5,
     verified: true,
     description: 'Room infinity, now going up! Regretevator is a roulette style elevator puzzle game where you can hang out, look for secrets, and have fun. ',
     category: 'Party & Casual'
