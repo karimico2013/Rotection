@@ -9,8 +9,18 @@ import { FeaturesSection } from './components/FeaturesSection';
 import { DiscordRedirect } from './components/DiscordRedirect';
 import { motion, AnimatePresence } from 'motion/react';
 
-// Mock data for verified games
-const verifiedGames = [
+// Define a type for a rating
+type Rating = {
+  honesty: number;
+  safety: number;
+  fairness: number;
+  ageAppropriate: number;
+  review: string;
+  user: string;
+};
+
+// Initial mock game
+const initialGames = [
   {
     id: '1',
     name: 'Regretevator [ ELEVATOR SIMULATOR ]',
@@ -24,22 +34,71 @@ const verifiedGames = [
       fairness: 4.3,
       ageAppropriate: 4.7
     },
+    ratingsList: [] as Rating[],
     totalRatings: 'Staff',
     verified: true,
-    description: 'Room infinity, now going up! Regretevator is a roulette style elevator puzzle game where you can hang out, look for secrets, and have fun. ',
+    description: 'Room infinity, now going up! Regretevator is a roulette style elevator puzzle game where you can hang out, look for secrets, and have fun.',
     category: 'Party & Casual'
   },
-
 ];
 
 type View = 'home' | 'browse' | 'submit' | 'game-details';
 
 export default function App() {
+  // ===== State =====
   const [currentView, setCurrentView] = useState<View>('home');
-  const [selectedGame, setSelectedGame] = useState<typeof verifiedGames[0] | null>(null);
+  const [selectedGame, setSelectedGame] = useState<typeof initialGames[0] | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSubmitDiscord, setShowSubmitDiscord] = useState(false);
+  const [verifiedGames, setVerifiedGames] = useState(initialGames);
 
+  // ===== Helper Functions =====
+  const addOrUpdateGame = (newGame: typeof verifiedGames[0]) => {
+    setVerifiedGames(prev => {
+      const index = prev.findIndex(g => g.id === newGame.id);
+      if (index !== -1) {
+        const updated = [...prev];
+        updated[index] = newGame;
+        return updated;
+      } else {
+        return [...prev, newGame];
+      }
+    });
+  };
+
+  const addRating = (gameId: string, rating: Rating) => {
+    setVerifiedGames(prev => prev.map(game => {
+      if (game.id !== gameId) return game;
+
+      const updatedRatings = [...(game.ratingsList || []), rating];
+      const avg = {
+        honesty: updatedRatings.reduce((a,b) => a+b.honesty,0)/updatedRatings.length,
+        safety: updatedRatings.reduce((a,b) => a+b.safety,0)/updatedRatings.length,
+        fairness: updatedRatings.reduce((a,b) => a+b.fairness,0)/updatedRatings.length,
+        ageAppropriate: updatedRatings.reduce((a,b) => a+b.ageAppropriate,0)/updatedRatings.length,
+      };
+
+      return {
+        ...game,
+        ratingsList: updatedRatings,
+        ratings: avg,
+        totalRatings: updatedRatings.length
+      };
+    }));
+  };
+
+  // ===== Connect to Bot WebSocket =====
+  useEffect(() => {
+    const ws = new WebSocket('ws://localhost:3001'); // Replace with your bot WS URL
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'newGame') addOrUpdateGame(data.game);
+      if (data.type === 'newRating') addRating(data.gameId, data.rating);
+    };
+    return () => ws.close();
+  }, []);
+
+  // ===== Filter games =====
   const filteredGames = verifiedGames.filter(game =>
     game.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     game.developer.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -61,6 +120,7 @@ export default function App() {
     window.scrollTo(0, 0);
   }, [currentView]);
 
+  // ===== Render =====
   return (
     <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white">
       <Header 
@@ -68,18 +128,11 @@ export default function App() {
         onNavigate={setCurrentView}
         onSubmitGame={() => setShowSubmitDiscord(true)}
       />
-      
+
       <AnimatePresence mode="wait">
         {currentView === 'home' && (
-          <motion.div
-            key="home"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-          >
+          <motion.div key="home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
             <Hero onGetStarted={() => setCurrentView('browse')} />
-            
             <FeaturesSection />
 
             {/* Featured Games Section */}
@@ -100,7 +153,7 @@ export default function App() {
                     These games have been verified by Rotection and loved by players like you!
                   </p>
                 </motion.div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                   {verifiedGames.slice(0, 3).map((game, index) => (
                     <motion.div
@@ -110,10 +163,7 @@ export default function App() {
                       viewport={{ once: true }}
                       transition={{ delay: index * 0.1, duration: 0.5 }}
                     >
-                      <GameCard 
-                        game={game} 
-                        onClick={() => handleGameClick(game)}
-                      />
+                      <GameCard game={game} onClick={() => handleGameClick(game)} />
                     </motion.div>
                   ))}
                 </div>
@@ -179,21 +229,9 @@ export default function App() {
         )}
 
         {currentView === 'browse' && (
-          <motion.section
-            key="browse"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            className="py-12 px-4 min-h-screen"
-          >
+          <motion.section key="browse" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className="py-12 px-4 min-h-screen">
             <div className="max-w-7xl mx-auto">
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-                className="mb-8"
-              >
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="mb-8">
                 <h1 className="text-purple-600 mb-4">Browse Verified Games</h1>
                 <div className="relative max-w-2xl">
                   <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -218,22 +256,14 @@ export default function App() {
                       transition={{ delay: index * 0.05, duration: 0.3 }}
                       layout
                     >
-                      <GameCard 
-                        game={game} 
-                        onClick={() => handleGameClick(game)}
-                      />
+                      <GameCard game={game} onClick={() => handleGameClick(game)} />
                     </motion.div>
                   ))}
                 </AnimatePresence>
               </div>
 
               {filteredGames.length === 0 && (
-                <motion.div 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.5 }}
-                  className="text-center py-12"
-                >
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }} className="text-center py-12">
                   <p className="text-gray-500">No games found matching your search.</p>
                 </motion.div>
               )}
@@ -242,25 +272,13 @@ export default function App() {
         )}
 
         {currentView === 'game-details' && selectedGame && (
-          <motion.div
-            key="game-details"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-          >
+          <motion.div key="game-details" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
             <GameDetails game={selectedGame} onBack={handleBackToBrowse} />
           </motion.div>
         )}
 
         {currentView === 'submit' && (
-          <motion.div
-            key="submit"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-          >
+          <motion.div key="submit" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
             <SubmitGameForm onCancel={() => setCurrentView('home')} />
           </motion.div>
         )}
@@ -284,10 +302,7 @@ export default function App() {
 
       {/* Submit Game Discord Redirect */}
       {showSubmitDiscord && (
-        <DiscordRedirect
-          action="submit your game"
-          onBack={() => setShowSubmitDiscord(false)}
-        />
+        <DiscordRedirect action="submit your game" onBack={() => setShowSubmitDiscord(false)} />
       )}
     </div>
   );
