@@ -1,20 +1,43 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Rotection — Changes Log
 
-# Run and deploy your AI Studio app
+## v2.0.0 — Platform Rebuild Update
 
-This contains everything you need to run your app locally.
+### Full Platform Redesign
+- Completely rebuilt the frontend experience from the ground up
+- Modernized UI with cleaner layouts, faster navigation, and improved responsiveness
+- Redesigned dashboard structure for easier moderation workflow
+- Improved accessibility and mobile compatibility
+- New visual identity and refined branding across the platform
 
-View your app in AI Studio: https://ai.studio/apps/ad6c5449-1b68-4243-bac5-20b2bb64c059
+### Authentication & Login System
+- Reworked the entire login and session handling system
+- Improved account security and authentication flow
+- Faster login performance and more reliable session management
+- Better protection against unauthorized access and abuse
+- Enhanced user verification and account handling systems
 
-## Run Locally
+### Advanced Moderation Systems
+- Expanded AI-assisted moderation capabilities
+- Improved report handling and moderation response flow
+- Added smarter detection systems for harmful behavior patterns
+- Enhanced ban evasion and scam detection systems
+- Improved moderation logging and internal tracking tools
 
-**Prerequisites:**  Node.js
+### Performance Improvements
+- Faster page loading and optimized backend requests
+- Reduced unnecessary API calls and improved caching systems
+- Improved scalability for larger communities and moderation teams
+- General bug fixes and stability improvements across the platform
 
+### Developer & Infrastructure Changes
+- Refactored major parts of the backend architecture
+- Improved database structure and internal tooling
+- Cleaner codebase for easier future expansion
+- Better support for future moderation modules and integrations
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+### Future Plans
+- Real-time moderation alerts
+- Community safety analytics
+- Automated threat scoring systems
+- Expanded moderation dashboard tools
+- Multi-platform moderation support
