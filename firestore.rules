@@ -1,0 +1,99 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'karimico2013@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user').toLowerCase() in ['admin', 'creator', 'co-creator', 'moderator', 'owner', 'co-owner'])
+      );
+    }
+
+    function isValidPost(data) {
+      return data.keys().hasAll(['title', 'content', 'author']) &&
+             data.title is string && data.title.size() <= 200 &&
+             data.content is string && data.content.size() <= 50000;
+    }
+
+    function isValidReview(data) {
+      return data.keys().hasAll(['gameId', 'userId', 'userName', 'text', 'rating']) &&
+             data.gameId is string && data.gameId.size() <= 128 &&
+             data.userId is string && data.userId.size() <= 128 &&
+             data.userName is string && data.userName.size() <= 100 &&
+             data.text is string && data.text.size() <= 2000 &&
+             data.rating is number && data.rating >= 1 && data.rating <= 5;
+    }
+
+    function isValidSecurityReport(data) {
+      return data.keys().hasAll(['userId', 'userName', 'chatSafety', 'accountSecurity', 'overallRating', 'description']) &&
+             data.userId == request.auth.uid &&
+             data.chatSafety is number && data.chatSafety >= 1 && data.chatSafety <= 5 &&
+             data.accountSecurity is number && data.accountSecurity >= 1 && data.accountSecurity <= 5 &&
+             data.overallRating is number && data.overallRating >= 1 && data.overallRating <= 5 &&
+             data.description is string && data.description.size() <= 3000;
+    }
+
+    // User Profiles
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && (
+        request.resource.data.get('uid', '') == userId &&
+        (request.resource.data.get('role', 'user') == 'user' || request.auth.token.email == 'karimico2013@gmail.com')
+      );
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Games
+    match /games/{gameId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+
+      // Reviews
+      match /reviews/{reviewId} {
+        allow read: if true;
+        allow create: if isSignedIn() && 
+                        request.resource.data.userId == request.auth.uid && 
+                        isValidReview(request.resource.data) &&
+                        exists(/databases/$(database)/documents/games/$(gameId));
+        allow delete: if isOwner(resource.data.userId) || isAdmin();
+        allow update: if false; 
+      }
+
+      // Security Reports
+      match /security_reports/{reportId} {
+        allow read: if true;
+        allow create: if isSignedIn() && isValidSecurityReport(request.resource.data);
+        allow delete: if isOwner(resource.data.userId) || isAdmin();
+        allow update: if false;
+      }
+    }
+
+    // Blog Posts
+    match /posts/{postId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidPost(request.resource.data);
+      allow update: if isAdmin() && isValidPost(request.resource.data);
+      allow delete: if isAdmin();
+    }
+  }
+}

@@ -1,0 +1,122 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "bio": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "admin", "auditor"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Game": {
+      "title": "Game Entry",
+      "description": "Details about a verified game",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "studio": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "ageGroup": { "type": "string" },
+        "gameLink": { "type": "string" },
+        "shieldScore": { "type": "number" },
+        "status": { "type": "string", "enum": ["Verified", "Manual Audit", "Secure Core", "AI Scanned"] },
+        "imgUrl": { "type": "string" },
+        "gallery": { "type": "array", "items": { "type": "string" } },
+        "rating": { "type": "number" },
+        "placeId": { "type": "number" },
+        "universeId": { "type": "number" },
+        "metrics": {
+          "type": "object",
+          "properties": {
+            "honesty": { "type": "number" },
+            "safety": { "type": "number" },
+            "fairness": { "type": "number" },
+            "ageAppropriateness": { "type": "number" }
+          }
+        },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "studio"]
+    },
+    "Review": {
+      "title": "Safety Review",
+      "description": "User shared safety reviews and comments",
+      "type": "object",
+      "properties": {
+        "gameId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userRole": { "type": "string" },
+        "text": { "type": "string" },
+        "rating": { "type": "number" },
+        "helpfulCount": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["gameId", "userId", "text", "rating"]
+    },
+    "SecurityReport": {
+      "title": "Verified Security Audit",
+      "description": "Detailed safety audit from a verified user",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userPhoto": { "type": "string" },
+        "chatSafety": { "type": "number" },
+        "accountSecurity": { "type": "number" },
+        "overallRating": { "type": "number" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userName", "chatSafety", "accountSecurity", "overallRating", "description"]
+    },
+    "BlogPost": {
+      "title": "Blog Post",
+      "description": "Technical safety report or blog article",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "content": { "type": "string" },
+        "image": { "type": "string" },
+        "readTime": { "type": "string" },
+        "author": { "type": "string" },
+        "authorId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "content", "author"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Collection of user profiles"
+    },
+    "/games/{gameId}": {
+      "schema": "Game",
+      "description": "Collection of verified games"
+    },
+    "/games/{gameId}/reviews/{reviewId}": {
+      "schema": "Review",
+      "description": "Subcollection of reviews for a specific game"
+    },
+    "/games/{gameId}/security_reports/{reportId}": {
+      "schema": "SecurityReport",
+      "description": "Subcollection of detailed safety audits"
+    },
+    "/posts/{postId}": {
+      "schema": "BlogPost",
+      "description": "Collection of blog articles"
+    }
+  }
+}

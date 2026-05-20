@@ -1,0 +1,6 @@
+{
+  "name": "Rotection - Proactive Gaming Safety",
+  "description": "A comprehensive digital safety infrastructure platform for gaming communities, providing real-time verification and military-grade security infrastructure. Built for trust and powered by precision.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

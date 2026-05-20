@@ -1,0 +1,12 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null && (
+        request.auth.token.email == 'karimico2013@gmail.com' ||
+        get(/databases/(default)/documents/users/$(request.auth.uid)).data.role.lowerCase() in ['admin', 'creator', 'owner']
+      );
+    }
+  }
+}
