@@ -24,11 +24,11 @@ export default function GamesListingPage({ onNavigate, onGameSelect, userProfile
       setLoading(true);
       try {
         const response = await fetch('/api/games');
-        const data = await response.json();
         if (response.ok) {
+          const data = await response.json();
           setGames(data.filter((game: any) => game.title && game.title.trim() !== ''));
         } else {
-          console.error('Failed to fetch games:', data.error);
+          console.error('Failed to fetch games, status:', response.status);
         }
       } catch (error) {
         console.error('Error fetching games:', error);

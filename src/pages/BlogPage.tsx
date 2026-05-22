@@ -31,9 +31,11 @@ const BlogPage: React.FC<BlogPageProps> = ({ onNavigate }) => {
       setLoading(true);
       try {
         const response = await fetch('/api/posts');
-        const data = await response.json();
         if (response.ok) {
+          const data = await response.json();
           setPosts(data);
+        } else {
+          console.error('Failed to fetch posts, status:', response.status);
         }
       } catch (error) {
         console.error('Error fetching posts:', error);

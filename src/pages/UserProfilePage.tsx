@@ -98,7 +98,7 @@ export default function UserProfilePage({ userId, onNavigate, onGameSelect }: Us
     );
   }
 
-  const isStaff = ['admin', 'creator', 'co-creator'].includes(profile.role?.toLowerCase());
+  const isStaff = ['admin', 'creator', 'co-creator', 'owner', 'co-owner'].includes(profile.role?.toLowerCase());
   const isSpecialist = ['auditor', 'moderator'].includes(profile.role?.toLowerCase());
 
   const getRoleDisplay = () => {
@@ -107,6 +107,8 @@ export default function UserProfilePage({ userId, onNavigate, onGameSelect }: Us
       case 'creator': return 'Founder & Creator';
       case 'co-creator': return 'Building the Future';
       case 'admin': return 'System Administrator';
+      case 'owner': return 'Owner';
+      case 'co-owner': return 'Co-Owner';
       case 'auditor': return 'Verified Auditor';
       case 'moderator': return 'Community Moderator';
       default: return 'Community Member';
@@ -138,7 +140,7 @@ export default function UserProfilePage({ userId, onNavigate, onGameSelect }: Us
 
           <div className="relative z-10 flex flex-col md:flex-row items-center md:items-end gap-10">
             <div className="relative group">
-              <div className="w-40 h-40 md:w-56 md:h-56 rounded-xl overflow-hidden border-4 border-primary shadow-2xl ring-4 ring-primary/10">
+              <div className="w-32 h-32 md:w-40 md:h-40 rounded-xl overflow-hidden border-4 border-primary shadow-2xl ring-4 ring-primary/10">
                 <UserAvatar 
                   userId={profile.uid}
                   robloxId={profile.robloxId}
@@ -150,9 +152,9 @@ export default function UserProfilePage({ userId, onNavigate, onGameSelect }: Us
               <motion.div 
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
-                className="absolute -bottom-3 -right-3 bg-primary-container text-white p-2 rounded-lg shadow-xl ring-4 ring-custom-dark"
+                className="absolute -bottom-2 -right-2 bg-primary-container text-white p-1.5 rounded-lg shadow-xl ring-4 ring-custom-dark"
               >
-                <CheckCircle2 size={24} fill="currentColor" className="text-white" />
+                <CheckCircle2 size={18} fill="currentColor" className="text-white" />
               </motion.div>
             </div>
 

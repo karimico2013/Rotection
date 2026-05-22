@@ -19,13 +19,15 @@ export default function LandingPage({ onNavigate, onGameSelect, userProfile }: L
       setLoading(true);
       try {
         const response = await fetch('/api/games');
-        const data = await response.json();
         if (response.ok) {
+          const data = await response.json();
           // Sort by rating desc and take 4
           const topGames = [...data]
             .sort((a, b) => b.rating - a.rating)
             .slice(0, 4);
           setVerifiedGames(topGames);
+        } else {
+          console.error('Failed to load landing games, status:', response.status);
         }
       } catch (error) {
         console.error('Error fetching landing games:', error);

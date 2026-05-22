@@ -74,8 +74,8 @@ export default function GameDetailPage({ gameId, onNavigate, userProfile }: Game
       const fetchProfile = async () => {
         try {
           const response = await fetch(`/api/users/${userId}`);
-          const data = await response.json();
           if (response.ok) {
+            const data = await response.json();
             setProfile(data);
           }
         } catch (error) {
@@ -553,9 +553,9 @@ export default function GameDetailPage({ gameId, onNavigate, userProfile }: Game
                     </button>
                   </div>
                 ) : (
-                  securityReports.map((report) => (
+                  securityReports.map((report, index) => (
                     <motion.div 
-                      key={report.id}
+                      key={report.id || `${report.userId}-${report.createdAt}-${index}`}
                       initial={{ opacity: 0, scale: 0.98 }}
                       animate={{ opacity: 1, scale: 1 }}
                       className="bg-white border-2 border-primary/10 p-8 rounded-3xl shadow-sm hover:shadow-md transition-shadow relative"
@@ -703,9 +703,9 @@ export default function GameDetailPage({ gameId, onNavigate, userProfile }: Game
                     No comments yet. Start the discussion!
                   </div>
                 ) : (
-                  reviews.map((review) => (
+                  reviews.map((review, index) => (
                     <motion.div 
-                      key={review.id}
+                      key={review.id || `${review.userId}-${review.createdAt}-${index}`}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       className="bg-white border border-outline-variant/30 p-6 rounded-2xl group relative"

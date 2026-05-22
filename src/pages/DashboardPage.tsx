@@ -40,8 +40,8 @@ export default function DashboardPage({ onNavigate, onGameSelect, userProfile }:
       setLoading(true);
       try {
         const response = await fetch('/api/games');
-        const allGames = await response.json();
         if (response.ok) {
+          const allGames = await response.json();
           // Top Rated Games
           const topGames = [...allGames]
             .sort((a, b) => b.shieldScore - a.shieldScore)
@@ -53,6 +53,8 @@ export default function DashboardPage({ onNavigate, onGameSelect, userProfile }:
             .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
             .slice(0, 10);
           setRecentAudits(recent);
+        } else {
+          console.error('Failed to load games, response status:', response.status);
         }
       } catch (error) {
         console.error('Error fetching dashboard data:', error);

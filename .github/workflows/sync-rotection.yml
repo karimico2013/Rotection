@@ -1,0 +1,37 @@
+name: Auto-Push to Rotection Production Mirror
+
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - '**'
+
+jobs:
+  push-to-mirror:
+    name: Sync to Rotection/Rotection
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Mirror to Target Repository
+        env:
+          TARGET_REPO_PAT: ${{ secrets.TARGET_REPO_PAT }}
+        run: |
+          if [ -z "$TARGET_REPO_PAT" ]; then
+            echo "::error::TARGET_REPO_PAT is missing in your GitHub Repository Secrets!"
+            echo "Please configure 'TARGET_REPO_PAT' as a repository secret on github.com/karimico2013/Rotection."
+            echo "See the Rotection configuration guide for details."
+            exit 1
+          fi
+
+          # Define target URLs and push
+          TARGET_URL="https://x-access-token:${TARGET_REPO_PAT}@github.com/Rotection/Rotection.git"
+          
+          echo "Syncing branch: ${{ github.ref_name }} to Rotection/Rotection..."
+          
+          # Force push the current branch to matching branch in the mirror repo
+          git push -f "$TARGET_URL" HEAD:refs/heads/${{ github.ref_name }} --tags

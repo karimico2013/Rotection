@@ -342,7 +342,7 @@ export default function AdminPage({ onNavigate, userProfile }: AdminPageProps) {
                   <div className="text-[10px] font-mono text-primary flex items-center gap-2">
                     <span>Sheet ID: 1vnfl7...rBY</span>
                     <span className="w-1 h-1 bg-outline-variant rounded-full" />
-                    <span>Firestore DB: {firebaseConfig.firestoreDatabaseId || '(default)'}</span>
+                    <span>Firestore DB: {(firebaseConfig as any).firestoreDatabaseId || '(default)'}</span>
                   </div>
                 </div>
               </div>
