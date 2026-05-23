@@ -304,12 +304,40 @@ app.use(cors());
 
   // --- Games API ---
   const getRowVal = (row: any, keys: string[]) => {
-    const obj = row.toObject();
-    const rawKeys = Object.keys(obj);
-    for (const key of keys) {
-      const target = key.toLowerCase().trim();
-      const foundKey = rawKeys.find(k => k.toLowerCase().trim() === target);
-      if (foundKey && obj[foundKey] !== undefined && obj[foundKey] !== null) return obj[foundKey];
+    if (!row) return '';
+    
+    // google-spreadsheet v4+ uses row.get(key)
+    if (typeof row.get === 'function') {
+      const headers = row._sheet?.headerValues || [];
+      for (const key of keys) {
+        const target = key.toLowerCase().trim();
+        const foundHeader = headers.find((h: string) => h.toLowerCase().trim() === target);
+        if (foundHeader !== undefined) {
+          const val = row.get(foundHeader);
+          if (val !== undefined && val !== null) {
+            return val;
+          }
+        }
+      }
+      
+      // Fallback: try direct property lookup
+      for (const key of keys) {
+        const target = key.toLowerCase().trim();
+        for (const k of Object.keys(row)) {
+          if (k.toLowerCase().trim() === target && row[k] !== undefined && row[k] !== null) {
+            return row[k];
+          }
+        }
+      }
+    } else {
+      // Direct raw property lookup for fallback local memory objects
+      for (const key of keys) {
+        const target = key.toLowerCase().trim();
+        const foundKey = Object.keys(row).find(k => k.toLowerCase().trim() === target);
+        if (foundKey && row[foundKey] !== undefined && row[foundKey] !== null) {
+          return row[foundKey];
+        }
+      }
     }
     return '';
   };
@@ -745,8 +773,18 @@ app.use(cors());
       }
       
       if (imageUrl) {
-        res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache redirect for 24h
-        return res.redirect(imageUrl);
+        const imgRes = await fetch(imageUrl);
+        if (imgRes.ok) {
+          const contentType = imgRes.headers.get('content-type') || 'image/png';
+          res.setHeader('Content-Type', contentType);
+          res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache image for 24 hours
+          
+          const arrayBuffer = await imgRes.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+          return res.send(buffer);
+        } else {
+          return res.redirect(imageUrl); // fallback to redirect if fetching fails
+        }
       } else {
         return res.redirect('https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&q=80');
       }
