@@ -1,7 +1,6 @@
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { createServer as createViteServer } from 'vite';
 import { GoogleSpreadsheet } from 'google-spreadsheet';
 import { JWT } from 'google-auth-library';
 import cors from 'cors';
@@ -13,14 +12,11 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+const app = express();
+const PORT = 3000;
 
-  // Initialize Firebase Admin
-
-  app.use(express.json());
-  app.use(cors());
+app.use(express.json());
+app.use(cors());
 
   // Enrich and Save Discovered Games
   app.post('/api/games/enrich', async (req, res) => {
@@ -1130,13 +1126,20 @@ async function startServer() {
     }
   });
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
+  // Vite middleware for development (dynamically loaded to keep production bundles light and independent of devDependencies)
+  if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+    import('vite').then(({ createServer: createViteServer }) => {
+      createViteServer({
+        server: { middlewareMode: true },
+        appType: 'spa',
+      }).then((vite) => {
+        app.use(vite.middlewares);
+      }).catch((e) => {
+        console.error('Failed to create Vite dev server:', e);
+      });
+    }).catch((e) => {
+      console.error('Failed to load Vite package:', e);
     });
-    app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
@@ -1145,9 +1148,11 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
-}
+  // Bind and run dev/prod server locally, but bypass when running inside a Serverless engine (Vercel)
+  if (!process.env.VERCEL && !process.env.NOW_BUILDER) {
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  }
 
-startServer();
+  export default app;

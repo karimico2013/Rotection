@@ -2,17 +2,12 @@ import { motion } from 'motion/react';
 import { Search, ChevronDown, ShieldCheck, Cpu, Lock, Shield, CheckCircle, ChevronLeft, ChevronRight, RefreshCw, Loader2, Sparkles } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { OperationType } from '../lib/firebase';
-import { GoogleGenAI } from '@google/genai';
 
 interface GamesListingPageProps {
   onNavigate: (page: string) => void;
   onGameSelect: (id: string) => void;
   userProfile?: any;
 }
-
-const ai = new GoogleGenAI({ 
-  apiKey: process.env.GEMINI_API_KEY || '' 
-});
 
 export default function GamesListingPage({ onNavigate, onGameSelect, userProfile }: GamesListingPageProps) {
   const [games, setGames] = useState<any[]>([]);
