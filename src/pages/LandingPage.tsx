@@ -27,7 +27,12 @@ export default function LandingPage({ onNavigate, onGameSelect, userProfile }: L
             .slice(0, 4);
           setVerifiedGames(topGames);
         } else {
-          console.error('Failed to load landing games, status:', response.status);
+          try {
+            const errData = await response.json();
+            console.error('Failed to load landing games, status:', response.status, 'error:', errData.error || errData);
+          } catch {
+            console.error('Failed to load landing games, status:', response.status);
+          }
         }
       } catch (error) {
         console.error('Error fetching landing games:', error);

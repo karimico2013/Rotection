@@ -18,6 +18,17 @@ const PORT = 3000;
 app.use(express.json());
 app.use(cors());
 
+// --- Discord Vercel Domain Protection Verification Routes ---
+app.get('/_discord.rotection.vercel.app', (req, res) => {
+  res.type('text/plain');
+  res.send('dh=400e111fe3a4eb8e85ef5d18d183cf7835e0f497');
+});
+
+app.get('/_discord.rotection.vercel.app.txt', (req, res) => {
+  res.type('text/plain');
+  res.send('dh=400e111fe3a4eb8e85ef5d18d183cf7835e0f497');
+});
+
   // Enrich and Save Discovered Games
   app.post('/api/games/enrich', async (req, res) => {
     console.log('Received discovered games for enrichment...');
@@ -75,12 +86,15 @@ app.use(cors());
 
   // --- Fallback Database Layer ---
   let isFallbackMode = false;
+  let hasMissingConfig = false;
+  let lastFallbackErrorTime = 0;
   const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const key = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
   if (!email || !key || !process.env.GOOGLE_SHEET_ID) {
     console.warn("⚠️ Google Sheets configuration variables are missing. Running in In-Memory Local Fallback Database Mode!");
     isFallbackMode = true;
+    hasMissingConfig = true;
   }
 
   const proxyRobloxUrl = (url: string): string => {
@@ -209,7 +223,17 @@ app.use(cors());
   // --- Google Sheets Core Logic ---
   const getSheetDoc = async () => {
     const activeEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || email;
-    const activeKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n') || key;
+    let activeKey = process.env.GOOGLE_PRIVATE_KEY || key;
+    if (activeKey) {
+      activeKey = activeKey.trim();
+      if (activeKey.startsWith('"') && activeKey.endsWith('"')) {
+        activeKey = activeKey.slice(1, -1);
+      }
+      if (activeKey.startsWith("'") && activeKey.endsWith("'")) {
+        activeKey = activeKey.slice(1, -1);
+      }
+      activeKey = activeKey.replace(/\\n/g, '\n');
+    }
     let sheetId = process.env.GOOGLE_SHEET_ID;
     if (!activeEmail || !activeKey || !sheetId) throw new Error('GOOGLE_CONFIG_MISSING');
 
@@ -234,11 +258,34 @@ app.use(cors());
       const activeKey = process.env.GOOGLE_PRIVATE_KEY || key;
       const activeSheetId = process.env.GOOGLE_SHEET_ID;
 
-      if (!activeEmail || !activeKey || !activeSheetId) return null;
-      if (isFallbackMode) return null;
-      return await getSheetDoc();
-    } catch (e) {
+      if (!activeEmail || !activeKey || !activeSheetId) {
+        hasMissingConfig = true;
+        return null;
+      }
+      
+      if (hasMissingConfig) return null;
+
+      // Cooldown check: if previous call timed out or failed, wait 30 seconds before retrying to prevent blocking/hanging routing threads
+      if (lastFallbackErrorTime > 0 && (Date.now() - lastFallbackErrorTime < 30000)) {
+        return null; // Silent skip during cooldown period
+      }
+
+      // Enforce a strict 6-second timeout block.
+      // If the Google Sheets API is hanging/down, we resolve to local fallback immediately without blocking Express.
+      const doc = await Promise.race([
+        getSheetDoc(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Google Sheets request timed out after 6000ms')), 6000)
+        )
+      ]);
+
+      // Successfully connected! Clear out any transient error states
+      lastFallbackErrorTime = 0;
+      isFallbackMode = false;
+      return doc;
+    } catch (e: any) {
       console.warn("⚠️ Failed to load Google Sheets doc, switching to local in-memory fallback!", e);
+      lastFallbackErrorTime = Date.now();
       isFallbackMode = true;
       return null;
     }
@@ -249,6 +296,8 @@ app.use(cors());
       // Dynamically load Google Sheets to see if it succeeds
       const doc = await getSheetDoc();
       isFallbackMode = false;
+      lastFallbackErrorTime = 0;
+      hasMissingConfig = false;
 
       // Ensure key sheets exist
       const requiredSheets = ['Games', 'Posts', 'Reviews', 'Reports', 'Users'];
@@ -353,35 +402,47 @@ app.use(cors());
         }));
         return res.json(mapped);
       }
-      const gameSheet = doc.sheetsByTitle['Games'] || doc.sheetsByIndex[0];
-      const rows = await gameSheet.getRows();
-      
-      const games = rows.map((row, index) => {
-        const title = getRowVal(row, ['Game Name', 'Title', 'Name']);
-        const gameId = getRowVal(row, ['Game ID', 'id', 'ID']) || title.toString().toLowerCase().replace(/[^a-z0-9]+/g, '-') || `game-${index}`;
+      try {
+        const gameSheet = doc.sheetsByTitle['Games'] || doc.sheetsByIndex[0];
+        if (!gameSheet) {
+          throw new Error('No sheets available in Google Spreadsheet');
+        }
+        const rows = await gameSheet.getRows();
         
-        return {
-          id: gameId.toString().trim(),
-          title: title,
-          studio: getRowVal(row, ['Creators', 'Studio', 'Author', 'Creator']),
-          description: getRowVal(row, ['Description', 'Game Description', 'About', 'Desc']),
-          ageGroup: getRowVal(row, ['Age Group', 'Rating', 'Age']),
-          category: getRowVal(row, ['Category', 'Genre', 'Type']),
-          gameLink: getRowVal(row, ['Game Link', 'URL', 'Link']),
-          shieldScore: parseFloat(getRowVal(row, ['Safety Score', 'Shield Score', 'Score'])) || 0,
-          status: getRowVal(row, ['Status', 'Verification', 'State']),
-          imgUrl: proxyRobloxUrl(getRowVal(row, ['Thumbnail', 'Icon', 'Image', 'Img'])),
-          rating: parseFloat(getRowVal(row, ['Ratings', 'User Rating', 'Stars'])) || 0,
-          metrics: {
-            honesty: parseFloat(getRowVal(row, ['Honesty'])) || 0,
-            safety: parseFloat(getRowVal(row, ['Safety'])) || 0,
-            fairness: parseFloat(getRowVal(row, ['Fairness'])) || 0,
-            ageAppropriateness: parseFloat(getRowVal(row, ['Age-appropriate', 'Appropriateness'])) || 0
-          },
-          updatedAt: getRowVal(row, ['Last Updated', 'Date', 'Updated']) || new Date().toISOString()
-        };
-      }).filter(g => g.title);
-      res.json(games);
+        const games = rows.map((row, index) => {
+          const title = getRowVal(row, ['Game Name', 'Title', 'Name']);
+          const gameId = getRowVal(row, ['Game ID', 'id', 'ID']) || title.toString().toLowerCase().replace(/[^a-z0-9]+/g, '-') || `game-${index}`;
+          
+          return {
+            id: gameId.toString().trim(),
+            title: title,
+            studio: getRowVal(row, ['Creators', 'Studio', 'Author', 'Creator']),
+            description: getRowVal(row, ['Description', 'Game Description', 'About', 'Desc']),
+            ageGroup: getRowVal(row, ['Age Group', 'Rating', 'Age']),
+            category: getRowVal(row, ['Category', 'Genre', 'Type']),
+            gameLink: getRowVal(row, ['Game Link', 'URL', 'Link']),
+            shieldScore: parseFloat(getRowVal(row, ['Safety Score', 'Shield Score', 'Score'])) || 0,
+            status: getRowVal(row, ['Status', 'Verification', 'State']),
+            imgUrl: proxyRobloxUrl(getRowVal(row, ['Thumbnail', 'Icon', 'Image', 'Img'])),
+            rating: parseFloat(getRowVal(row, ['Ratings', 'User Rating', 'Stars'])) || 0,
+            metrics: {
+              honesty: parseFloat(getRowVal(row, ['Honesty'])) || 0,
+              safety: parseFloat(getRowVal(row, ['Safety'])) || 0,
+              fairness: parseFloat(getRowVal(row, ['Fairness'])) || 0,
+              ageAppropriateness: parseFloat(getRowVal(row, ['Age-appropriate', 'Appropriateness'])) || 0
+            },
+            updatedAt: getRowVal(row, ['Last Updated', 'Date', 'Updated']) || new Date().toISOString()
+          };
+        }).filter(g => g.title);
+        res.json(games);
+      } catch (sheetErr: any) {
+        console.error("❌ Failed to query games from sheet, serving local games fallback:", sheetErr);
+        const mapped = localGames.map(g => ({
+          ...g,
+          imgUrl: proxyRobloxUrl(g.imgUrl)
+        }));
+        return res.json(mapped);
+      }
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -400,44 +461,57 @@ app.use(cors());
           imgUrl: proxyRobloxUrl(game.imgUrl)
         });
       }
-      const gameSheet = doc.sheetsByTitle['Games'] || doc.sheetsByIndex[0];
-      const rows = await gameSheet.getRows();
-      
-      const targetId = id.toString().trim().toLowerCase();
-      const row = rows.find((r, index) => {
-        const title = getRowVal(r, ['Game Name', 'Title', 'Name']);
-        const rowGameId = (getRowVal(r, ['Game ID', 'id', 'ID']) || title.toString().toLowerCase().replace(/[^a-z0-9]+/g, '-') || `game-${index}`).toString().trim().toLowerCase();
-        return rowGameId === targetId;
-      });
-
-      if (!row) {
-        console.warn(`Game lookup failed for ID: "${id}"`);
-        return res.status(404).json({ error: 'Game not found' });
-      }
-
-      const foundIndex = rows.indexOf(row);
-      const title = getRowVal(row, ['Game Name', 'Title', 'Name']);
-      const computedId = getRowVal(row, ['Game ID', 'id', 'ID']) || title.toString().toLowerCase().replace(/[^a-z0-9]+/g, '-') || `game-${foundIndex}`;
-      
-      res.json({
-        id: computedId,
-        title: title,
-        studio: getRowVal(row, ['Creators', 'Studio', 'Author', 'Creator']),
-         description: getRowVal(row, ['Description', 'Game Description', 'About', 'Desc']),
-        ageGroup: getRowVal(row, ['Age Group', 'Rating', 'Age']),
-        category: getRowVal(row, ['Category', 'Genre', 'Type']),
-        gameLink: getRowVal(row, ['Game Link', 'URL', 'Link']),
-        shieldScore: parseFloat(getRowVal(row, ['Safety Score', 'Shield Score', 'Score'])) || 0,
-        status: getRowVal(row, ['Status', 'Verification', 'State']),
-        imgUrl: proxyRobloxUrl(getRowVal(row, ['Thumbnail', 'Icon', 'Image', 'Img'])),
-        rating: parseFloat(getRowVal(row, ['Ratings', 'User Rating', 'Stars'])) || 0,
-        metrics: {
-          honesty: parseFloat(getRowVal(row, ['Honesty'])) || 0,
-          safety: parseFloat(getRowVal(row, ['Safety'])) || 0,
-          fairness: parseFloat(getRowVal(row, ['Fairness'])) || 0,
-          ageAppropriateness: parseFloat(getRowVal(row, ['Age-appropriate', 'Appropriateness'])) || 0
+      try {
+        const gameSheet = doc.sheetsByTitle['Games'] || doc.sheetsByIndex[0];
+        if (!gameSheet) {
+          throw new Error('No sheet found');
         }
-      });
+        const rows = await gameSheet.getRows();
+        
+        const targetId = id.toString().trim().toLowerCase();
+        const row = rows.find((r, index) => {
+          const title = getRowVal(r, ['Game Name', 'Title', 'Name']);
+          const rowGameId = (getRowVal(r, ['Game ID', 'id', 'ID']) || title.toString().toLowerCase().replace(/[^a-z0-9]+/g, '-') || `game-${index}`).toString().trim().toLowerCase();
+          return rowGameId === targetId;
+        });
+
+        if (!row) {
+          console.warn(`Game lookup failed for ID: "${id}"`);
+          return res.status(404).json({ error: 'Game not found' });
+        }
+
+        const foundIndex = rows.indexOf(row);
+        const title = getRowVal(row, ['Game Name', 'Title', 'Name']);
+        const computedId = getRowVal(row, ['Game ID', 'id', 'ID']) || title.toString().toLowerCase().replace(/[^a-z0-9]+/g, '-') || `game-${foundIndex}`;
+        
+        res.json({
+          id: computedId,
+          title: title,
+          studio: getRowVal(row, ['Creators', 'Studio', 'Author', 'Creator']),
+          description: getRowVal(row, ['Description', 'Game Description', 'About', 'Desc']),
+          ageGroup: getRowVal(row, ['Age Group', 'Rating', 'Age']),
+          category: getRowVal(row, ['Category', 'Genre', 'Type']),
+          gameLink: getRowVal(row, ['Game Link', 'URL', 'Link']),
+          shieldScore: parseFloat(getRowVal(row, ['Safety Score', 'Shield Score', 'Score'])) || 0,
+          status: getRowVal(row, ['Status', 'Verification', 'State']),
+          imgUrl: proxyRobloxUrl(getRowVal(row, ['Thumbnail', 'Icon', 'Image', 'Img'])),
+          rating: parseFloat(getRowVal(row, ['Ratings', 'User Rating', 'Stars'])) || 0,
+          metrics: {
+            honesty: parseFloat(getRowVal(row, ['Honesty'])) || 0,
+            safety: parseFloat(getRowVal(row, ['Safety'])) || 0,
+            fairness: parseFloat(getRowVal(row, ['Fairness'])) || 0,
+            ageAppropriateness: parseFloat(getRowVal(row, ['Age-appropriate', 'Appropriateness'])) || 0
+          }
+        });
+      } catch (sheetErr: any) {
+        console.error("❌ Failed to query game detail from sheet, serving from local games list:", sheetErr);
+        const game = localGames.find(g => g.id.toLowerCase() === id.trim().toLowerCase());
+        if (!game) return res.status(404).json({ error: 'Game not found' });
+        return res.json({
+          ...game,
+          imgUrl: proxyRobloxUrl(game.imgUrl)
+        });
+      }
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -450,22 +524,27 @@ app.use(cors());
       if (isFallbackMode || !doc) {
         return res.json(localPosts);
       }
-      let postSheet = doc.sheetsByTitle['Posts'];
-      if (!postSheet) {
-        postSheet = await doc.addSheet({ title: 'Posts', headerValues: ['ID', 'Title', 'Excerpt', 'Content', 'Author', 'Date', 'Image', 'Category'] });
+      try {
+        let postSheet = doc.sheetsByTitle['Posts'];
+        if (!postSheet) {
+          postSheet = await doc.addSheet({ title: 'Posts', headerValues: ['ID', 'Title', 'Excerpt', 'Content', 'Author', 'Date', 'Image', 'Category'] });
+        }
+        const rows = await postSheet.getRows();
+        const posts = rows.map(r => ({
+          id: r.get('ID'),
+          title: r.get('Title'),
+          excerpt: r.get('Excerpt'),
+          content: r.get('Content'),
+          author: r.get('Author'),
+          date: r.get('Date'),
+          image: r.get('Image'),
+          category: r.get('Category')
+        }));
+        res.json(posts);
+      } catch (sheetErr: any) {
+        console.error("❌ Failed to query posts from sheet, serving local posts fallback:", sheetErr);
+        return res.json(localPosts);
       }
-      const rows = await postSheet.getRows();
-      const posts = rows.map(r => ({
-        id: r.get('ID'),
-        title: r.get('Title'),
-        excerpt: r.get('Excerpt'),
-        content: r.get('Content'),
-        author: r.get('Author'),
-        date: r.get('Date'),
-        image: r.get('Image'),
-        category: r.get('Category')
-      }));
-      res.json(posts);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -542,22 +621,28 @@ app.use(cors());
         const reviews = localReviews.filter(r => r.gameId === id);
         return res.json(reviews);
       }
-      let reviewSheet = doc.sheetsByTitle['Reviews'];
-      if (!reviewSheet) {
-        reviewSheet = await doc.addSheet({ title: 'Reviews', headerValues: ['GameID', 'UserID', 'Username', 'PhotoURL', 'Text', 'Rating', 'CreatedAt', 'RobloxID'] });
+      try {
+        let reviewSheet = doc.sheetsByTitle['Reviews'];
+        if (!reviewSheet) {
+          reviewSheet = await doc.addSheet({ title: 'Reviews', headerValues: ['GameID', 'UserID', 'Username', 'PhotoURL', 'Text', 'Rating', 'CreatedAt', 'RobloxID'] });
+        }
+        const rows = await reviewSheet.getRows();
+        const reviews = rows.filter(r => r.get('GameID') === id).map(r => ({
+          gameId: r.get('GameID'),
+          userId: r.get('UserID'),
+          userName: r.get('Username'),
+          userPhoto: r.get('PhotoURL'),
+          text: r.get('Text'),
+          rating: parseFloat(r.get('Rating')),
+          createdAt: r.get('CreatedAt'),
+          robloxId: r.get('RobloxID')
+        }));
+        res.json(reviews);
+      } catch (sheetErr: any) {
+        console.error("❌ Failed to query reviews from sheet, serving local reviews fallback:", sheetErr);
+        const reviews = localReviews.filter(r => r.gameId === id);
+        return res.json(reviews);
       }
-      const rows = await reviewSheet.getRows();
-      const reviews = rows.filter(r => r.get('GameID') === id).map(r => ({
-        gameId: r.get('GameID'),
-        userId: r.get('UserID'),
-        userName: r.get('Username'),
-        userPhoto: r.get('PhotoURL'),
-        text: r.get('Text'),
-        rating: parseFloat(r.get('Rating')),
-        createdAt: r.get('CreatedAt'),
-        robloxId: r.get('RobloxID')
-      }));
-      res.json(reviews);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -607,24 +692,30 @@ app.use(cors());
         const reports = localReports.filter(r => r.gameId === id);
         return res.json(reports);
       }
-      let reportSheet = doc.sheetsByTitle['Reports'];
-      if (!reportSheet) {
-        reportSheet = await doc.addSheet({ title: 'Reports', headerValues: ['GameID', 'UserID', 'Username', 'PhotoURL', 'Type', 'Description', 'Evidence', 'Severity', 'CreatedAt', 'RobloxID'] });
+      try {
+        let reportSheet = doc.sheetsByTitle['Reports'];
+        if (!reportSheet) {
+          reportSheet = await doc.addSheet({ title: 'Reports', headerValues: ['GameID', 'UserID', 'Username', 'PhotoURL', 'Type', 'Description', 'Evidence', 'Severity', 'CreatedAt', 'RobloxID'] });
+        }
+        const rows = await reportSheet.getRows();
+        const reports = rows.filter(r => r.get('GameID') === id).map(r => ({
+          gameId: r.get('GameID'),
+          userId: r.get('UserID'),
+          userName: r.get('Username'),
+          userPhoto: r.get('PhotoURL'),
+          type: r.get('Type'),
+          description: r.get('Description'),
+          evidence: r.get('Evidence'),
+          severity: r.get('Severity'),
+          createdAt: r.get('CreatedAt'),
+          robloxId: r.get('RobloxID')
+        }));
+        res.json(reports);
+      } catch (sheetErr: any) {
+        console.error("❌ Failed to query reports from sheet, serving local reports fallback:", sheetErr);
+        const reports = localReports.filter(r => r.gameId === id);
+        return res.json(reports);
       }
-      const rows = await reportSheet.getRows();
-      const reports = rows.filter(r => r.get('GameID') === id).map(r => ({
-        gameId: r.get('GameID'),
-        userId: r.get('UserID'),
-        userName: r.get('Username'),
-        userPhoto: r.get('PhotoURL'),
-        type: r.get('Type'),
-        description: r.get('Description'),
-        evidence: r.get('Evidence'),
-        severity: r.get('Severity'),
-        createdAt: r.get('CreatedAt'),
-        robloxId: r.get('RobloxID')
-      }));
-      res.json(reports);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
